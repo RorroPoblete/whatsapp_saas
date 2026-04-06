@@ -1,5 +1,6 @@
-# Secretos — NUNCA subir a GitHub
+# Secretos
 .env
+backend/.env
 
 # Base de datos local
 *.db
@@ -12,25 +13,16 @@ __pycache__/
 *.pyo
 .venv/
 venv/
-env/
 *.egg-info/
-dist/
-build/
 
-# Knowledge (archivos privados del negocio)
-knowledge/*
-!knowledge/.gitkeep
+# Node
+node_modules/
+frontend/.next/
+frontend/out/
 
-# Archivos generados por Claude Code durante onboarding
-agent/
-config/
-tests/
-requirements.txt
-Dockerfile
-docker-compose.yml
-
-# Session state
-config/session.yaml
+# Knowledge (archivos privados)
+backend/knowledge/*
+!backend/knowledge/.gitkeep
 
 # OS
 .DS_Store
@@ -43,8 +35,9 @@ Thumbs.db
 *.swo
 *~
 
-# Docker
-.dockerignore
-
-# Node (si se usa para Claude Code)
-node_modules/
+# Old single-tenant files (legacy)
+agent/
+config/
+tests/
+knowledge/
+agentkit.db

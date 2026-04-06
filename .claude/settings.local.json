@@ -18,7 +18,24 @@
       "Write",
       "Edit",
       "Glob",
-      "Grep"
+      "Grep",
+      "Bash(python3.11 --version)",
+      "Bash(python3.12 --version)",
+      "Bash(python3.13 --version)",
+      "Bash(python3.12 -m pip install -r requirements.txt)",
+      "Bash(python3.12 -m venv /Users/rodrigopoblete/Desktop/Proyectos/whatsapp-agentkit/.venv)",
+      "Bash(source /Users/rodrigopoblete/Desktop/Proyectos/whatsapp-agentkit/.venv/bin/activate)",
+      "WebFetch(domain:cleversalud.cl)",
+      "WebFetch(domain:www.wasapi.io)",
+      "WebFetch(domain:ayuda.wasapi.io)",
+      "WebFetch(domain:whapi.cloud)",
+      "WebSearch",
+      "Bash(kill %1)",
+      "Bash(lsof -ti:8000)",
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)",
+      "Bash(ngrok version:*)",
+      "Bash(sqlite3:*)"
     ]
   }
 }

@@ -14,25 +14,34 @@ echo ""
 
 # ── Verificar Python ──────────────────────────────────────────
 echo "  [1/4] Verificando Python..."
-if ! command -v python3 &> /dev/null; then
-    echo ""
-    echo "  ERROR: Python 3 no encontrado."
-    echo "  Descargalo en: https://python.org/downloads"
-    echo ""
-    exit 1
-fi
 
-PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
-PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
-if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
+# Buscar un Python >= 3.11 entre los candidatos disponibles
+PYTHON_CMD=""
+for candidate in python3 python3.13 python3.12 python3.11 /opt/homebrew/bin/python3 /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3.11; do
+    if command -v "$candidate" &> /dev/null; then
+        major=$($candidate -c 'import sys; print(sys.version_info.major)' 2>/dev/null) || continue
+        minor=$($candidate -c 'import sys; print(sys.version_info.minor)' 2>/dev/null) || continue
+        if [ "$major" -eq 3 ] && [ "$minor" -ge 11 ]; then
+            PYTHON_CMD="$candidate"
+            break
+        fi
+    fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
     echo ""
     echo "  ERROR: Necesitas Python 3.11 o superior."
-    echo "  Version actual: $(python3 --version)"
+    if command -v python3 &> /dev/null; then
+        echo "  Version encontrada: $(python3 --version)"
+    fi
     echo "  Descarga la ultima version en: https://python.org/downloads"
+    echo ""
+    echo "  Si ya lo instalaste con Homebrew, agrega al PATH:"
+    echo "    export PATH=\"/opt/homebrew/opt/python@3.12/libexec/bin:\$PATH\""
     echo ""
     exit 1
 fi
-echo "  OK — $(python3 --version)"
+echo "  OK — $($PYTHON_CMD --version) [$PYTHON_CMD]"
 
 # ── Verificar Claude Code ────────────────────────────────────
 echo "  [2/4] Verificando Claude Code..."

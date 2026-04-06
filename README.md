@@ -374,3 +374,12 @@ Construido con [Claude Code](https://claude.ai/claude-code) para builders de LAT
 ## Licencia
 
 MIT — Usa este proyecto como quieras, para lo que quieras.
+
+
+
+  Terminal 1 — Servidor (abre una terminal nueva y ejecuta):                                                                                                          
+  cd ~/Desktop/Proyectos/whatsapp-agentkit                                                                                                                            
+  python3 -m uvicorn agent.main:app --reload --port 8000                                                                                                              
+                                                                                                                                                                      
+  Terminal 2 — Ngrok (abre otra terminal y ejecuta):                                                                                                                  
+  ngrok http 8000
