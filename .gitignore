@@ -2,7 +2,7 @@
 .env
 backend/.env
 
-# Base de datos local
+# Bases de datos
 *.db
 *.sqlite
 *.sqlite3
@@ -14,15 +14,12 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
 
 # Node
 node_modules/
 frontend/.next/
 frontend/out/
-
-# Knowledge (archivos privados)
-backend/knowledge/*
-!backend/knowledge/.gitkeep
 
 # OS
 .DS_Store
@@ -32,12 +29,4 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-*.swo
 *~
-
-# Old single-tenant files (legacy)
-agent/
-config/
-tests/
-knowledge/
-agentkit.db
