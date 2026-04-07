@@ -14,6 +14,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 
 class ConfigResponse(BaseModel):
+    niche: str
     business_name: str
     business_description: str
     business_address: str
@@ -27,6 +28,7 @@ class ConfigResponse(BaseModel):
     fallback_message: str
     error_message: str
     knowledge_base: str
+    onboarding_questions: list
     whatsapp_provider: str
     ai_provider: str
     ai_model: str
@@ -47,6 +49,8 @@ class ConfigUpdateRequest(BaseModel):
     fallback_message: Optional[str] = None
     error_message: Optional[str] = None
     knowledge_base: Optional[str] = None
+    onboarding_questions: Optional[List] = None
+    niche: Optional[str] = None
 
 
 class WhatsAppConfigRequest(BaseModel):
@@ -82,6 +86,7 @@ async def get_config(
     """Retorna la configuracion actual del agente."""
     config = await _get_config(tenant_id, db)
     return ConfigResponse(
+        niche=config.niche,
         business_name=config.business_name,
         business_description=config.business_description,
         business_address=config.business_address,
@@ -95,6 +100,7 @@ async def get_config(
         fallback_message=config.fallback_message,
         error_message=config.error_message,
         knowledge_base=config.knowledge_base,
+        onboarding_questions=config.onboarding_questions or [],
         whatsapp_provider=config.whatsapp_provider,
         ai_provider=config.ai_provider,
         ai_model=config.ai_model,
@@ -164,15 +170,28 @@ async def complete_setup(
     tenant_id: uuid.UUID = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """Marca el setup como completo y activa el agente."""
-    config = await _get_config(tenant_id, db)
+    """Marca el setup como completo, asigna numero WhatsApp del pool y activa el agente."""
+    from agent.api.numbers import assign_number_to_tenant
 
+    config = await _get_config(tenant_id, db)
     config.system_prompt = body.system_prompt
     config.is_setup_complete = True
     config.updated_at = datetime.utcnow()
+
+    # Asignar numero del pool si no tiene uno
+    assigned_number = None
+    if not config.whatsapp_credentials or not config.whatsapp_credentials.get("token"):
+        number = await assign_number_to_tenant(tenant_id, db)
+        if number:
+            assigned_number = number.phone_number
+
     await db.commit()
 
-    return {"status": "ok", "message": "Agente activado"}
+    return {
+        "status": "ok",
+        "message": "Agente activado",
+        "phone_number": assigned_number,
+    }
 
 
 @router.get("/webhook-url")
@@ -247,3 +266,145 @@ Fuera de horario responde: "Gracias por escribirnos. Te responderemos en cuanto 
     await db.commit()
 
     return {"status": "ok", "system_prompt": prompt}
+
+
+# ── Auto-setup: genera TODO desde descripcion + URL ───────
+
+class AutoSetupRequest(BaseModel):
+    description: str
+    url: Optional[str] = None
+
+
+@router.post("/auto-setup")
+async def auto_setup(
+    body: AutoSetupRequest,
+    tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Recibe descripcion del negocio + URL opcional.
+    Scrapea la web, analiza todo con IA y genera:
+    system prompt, servicios, recursos, agent name, tone.
+    NO aplica cambios — retorna la sugerencia para review.
+    """
+    import os
+    config = await _get_config(tenant_id, db)
+    api_key = config.ai_api_key_encrypted or os.getenv("PLATFORM_OPENAI_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key de IA no disponible")
+
+    # 1. Obtener info del sitio web si hay URL
+    web_info = ""
+    if body.url:
+        try:
+            from agent.scraper import fetch_url_text
+            web_info = await fetch_url_text(body.url)
+        except Exception as e:
+            web_info = f"(No se pudo acceder a la URL: {e})"
+
+    # 2. Llamar a IA para generar todo de una vez
+    from openai import AsyncOpenAI
+    import json, re
+
+    client = AsyncOpenAI(api_key=api_key)
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        max_tokens=2000,
+        messages=[
+            {"role": "system", "content": """Eres un experto configurando agentes de WhatsApp con IA para negocios.
+
+Te dan una descripcion del negocio y opcionalmente el contenido de su sitio web.
+Debes generar UNA configuracion completa.
+
+Responde SOLO con JSON valido (sin markdown, sin ```):
+{
+  "agent_name": "nombre del asistente (ej: Isabella, Sofia, Carlos)",
+  "agent_tone": "profesional|amigable|vendedor|empatico",
+  "business_name": "nombre del negocio",
+  "business_description": "descripcion breve",
+  "business_phone": "telefono si lo encuentras",
+  "business_website": "url del sitio",
+  "business_address": "direccion si la encuentras",
+  "business_hours": {"Lunes a Viernes": "9:00 - 18:00", "Sabado": "10:00 - 14:00", "Domingo": "Cerrado"},
+  "system_prompt": "El system prompt completo para el agente. Incluye: identidad, info del negocio, servicios con precios, reglas de comportamiento. Debe ser exhaustivo con toda la info encontrada. NO uses markdown ni emojis. Las reglas deben incluir: responder corto (2-3 oraciones), no inventar datos, invitar a profundizar.",
+  "services": [
+    {
+      "name": "nombre del servicio (ej: Restaurant, Hotel, Consulta Medica)",
+      "niche": "restaurant|hotel|agenda|custom",
+      "resources": [
+        {"name": "nombre recurso", "type": "table|room|slot|custom", "capacity": 2, "duration_minutes": 90, "description": "desc corta"}
+      ]
+    }
+  ]
+}
+
+Reglas:
+- El system_prompt debe ser COMPLETO y listo para usar, con toda la info del negocio
+- Si detectas servicios reservables (mesas, habitaciones, citas), genera los recursos
+- Restaurant: mesas con capacidades variadas (2,4,6), duracion 90 min
+- Hotel: habitaciones por tipo, duracion 1440 min (1 noche)
+- Agenda/Citas: slots de hora, duracion 30-60 min
+- Si hay multiples servicios, incluye TODOS
+- Si no hay servicios reservables, services = []
+- Incluye TODOS los precios, horarios, contactos que encuentres"""},
+            {"role": "user", "content": f"DESCRIPCION DEL NEGOCIO:\n{body.description}\n\n{'CONTENIDO DEL SITIO WEB:' + chr(10) + web_info if web_info else '(Sin sitio web)'}"}
+        ],
+    )
+
+    text = response.choices[0].message.content.strip()
+    if text.startswith("```"):
+        text = re.sub(r'^```\w*\n?', '', text)
+        text = re.sub(r'\n?```$', '', text)
+
+    result = json.loads(text)
+    return result
+
+
+@router.post("/apply-setup")
+async def apply_setup(
+    body: dict,
+    tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Aplica la configuracion generada por auto-setup.
+    Actualiza config, crea servicios y recursos.
+    """
+    from agent.models import Service, Resource
+
+    config = await _get_config(tenant_id, db)
+
+    # Actualizar config del tenant (usar "" como default si viene null)
+    for field in ["agent_name", "agent_tone", "business_name", "business_description",
+                  "business_phone", "business_website", "business_address", "system_prompt"]:
+        value = body.get(field)
+        setattr(config, field, value if value is not None else "")
+
+    if "business_hours" in body:
+        config.business_hours = body["business_hours"]
+
+    config.updated_at = datetime.utcnow()
+
+    # Crear servicios y recursos
+    created_services = []
+    for svc_data in body.get("services", []):
+        service = Service(
+            tenant_id=tenant_id,
+            name=svc_data.get("name", "Servicio"),
+            niche=svc_data.get("niche", "custom"),
+        )
+        db.add(service)
+        await db.flush()
+
+        for r in svc_data.get("resources", []):
+            db.add(Resource(
+                tenant_id=tenant_id, service_id=service.id,
+                name=r["name"], resource_type=r.get("type", "custom"),
+                capacity=r.get("capacity", 1),
+                duration_minutes=r.get("duration_minutes", 60),
+                description=r.get("description", ""),
+            ))
+        created_services.append({"name": service.name, "resources": len(svc_data.get("resources", []))})
+
+    await db.commit()
+    return {"status": "ok", "services_created": created_services}

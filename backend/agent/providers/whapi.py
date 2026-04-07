@@ -15,12 +15,21 @@ class ProveedorWhapi(ProveedorWhatsApp):
         self.token = token
         self.url_envio = "https://gate.whapi.cloud/messages/text"
 
+    @staticmethod
+    def _limpiar_telefono(chat_id: str) -> str:
+        """Convierte '56971374935@s.whatsapp.net' → '+56971374935'."""
+        numero = chat_id.split("@")[0]
+        if numero and not numero.startswith("+"):
+            numero = f"+{numero}"
+        return numero
+
     async def parsear_webhook(self, request: Request) -> list[MensajeEntrante]:
         body = await request.json()
         mensajes = []
         for msg in body.get("messages", []):
+            chat_id = msg.get("chat_id", "")
             mensajes.append(MensajeEntrante(
-                telefono=msg.get("chat_id", ""),
+                telefono=self._limpiar_telefono(chat_id),
                 texto=msg.get("text", {}).get("body", ""),
                 mensaje_id=msg.get("id", ""),
                 es_propio=msg.get("from_me", False),

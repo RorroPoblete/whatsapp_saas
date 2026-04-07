@@ -6,6 +6,15 @@ import { getToken } from "@/lib/auth"
 import { getConversations, type ConversationSummary } from "@/lib/api"
 import { MessageSquare, Search } from "lucide-react"
 
+function formatPhone(phone: string): string {
+  // "+56971374935" → "+56 9 7137 4935"
+  const clean = phone.replace(/[^0-9+]/g, "")
+  if (clean.startsWith("+56") && clean.length === 12) {
+    return `+56 ${clean[3]} ${clean.slice(4, 8)} ${clean.slice(8)}`
+  }
+  return clean || phone
+}
+
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [search, setSearch] = useState("")
@@ -63,7 +72,7 @@ export default function ConversationsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-sm">
-                    {conv.contact_name || conv.phone_number}
+                    {conv.contact_name || formatPhone(conv.phone_number)}
                   </span>
                   <span className="text-xs text-gray-400">
                     {conv.last_message_at

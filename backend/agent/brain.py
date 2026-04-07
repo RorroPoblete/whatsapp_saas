@@ -8,11 +8,15 @@ Sin globals — todo se recibe por parametro.
 """
 
 import json
+import uuid
 import logging
 from datetime import datetime
 from openai import AsyncOpenAI
+from agent.booking_tools import BOOKING_TOOLS, ejecutar_booking_tool
 
 logger = logging.getLogger("agentkit")
+
+BOOKING_TOOL_NAMES = {t["function"]["name"] for t in BOOKING_TOOLS}
 
 
 # Herramientas built-in disponibles para todos los tenants
@@ -58,6 +62,10 @@ async def generar_respuesta(
     fallback_message: str = "Disculpa, no entendi tu mensaje.",
     error_message: str = "Lo siento, problemas tecnicos. Intenta de nuevo.",
     custom_tools: list | None = None,
+    contact_context: dict | None = None,
+    tenant_id: uuid.UUID | None = None,
+    enable_bookings: bool = False,
+    niche: str | None = None,
 ) -> dict:
     """
     Genera una respuesta usando la API de IA configurada por el tenant.
@@ -72,14 +80,27 @@ async def generar_respuesta(
     fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M")
     full_prompt = f"{system_prompt}\n\n## Contexto temporal\nFecha y hora actual: {fecha_actual}"
 
+    # Inyectar contexto del contacto (respuestas del onboarding)
+    if contact_context:
+        ctx_lines = "\n".join(f"- {pregunta}: {respuesta}" for pregunta, respuesta in contact_context.items())
+        full_prompt += f"\n\n## Informacion del contacto\nEste cliente te dio la siguiente informacion al iniciar la conversacion:\n{ctx_lines}\nUsa esta informacion para personalizar tus respuestas."
+
     # Construir mensajes
     mensajes = [{"role": "system", "content": full_prompt}]
     for msg in historial:
         mensajes.append({"role": msg["role"], "content": msg["content"]})
     mensajes.append({"role": "user", "content": mensaje})
 
-    # Herramientas: built-in + custom del tenant
+    # Inyectar instrucciones de booking si tiene recursos
+    if enable_bookings:
+        from agent.niches import get_niche_template
+        template = get_niche_template(niche or "custom")
+        full_prompt += f"\n\n{template['booking_prompt_section']}"
+
+    # Herramientas: built-in + booking + custom del tenant
     tools = BUILTIN_TOOLS.copy()
+    if enable_bookings:
+        tools.extend(BOOKING_TOOLS)
     if custom_tools:
         tools.extend(custom_tools)
 
@@ -92,7 +113,7 @@ async def generar_respuesta(
         while True:
             response = await client.chat.completions.create(
                 model=ai_model,
-                max_tokens=512,
+                max_tokens=1024,
                 messages=mensajes,
                 tools=tools if tools else None,
             )
@@ -116,10 +137,14 @@ async def generar_respuesta(
                 mensajes.append(choice.message)
 
                 for tool_call in choice.message.tool_calls:
+                    nombre = tool_call.function.name
                     parametros = json.loads(tool_call.function.arguments)
-                    resultado = _ejecutar_herramienta_builtin(
-                        tool_call.function.name, parametros
-                    )
+
+                    if nombre in BOOKING_TOOL_NAMES and tenant_id:
+                        resultado = await ejecutar_booking_tool(nombre, parametros, tenant_id)
+                    else:
+                        resultado = _ejecutar_herramienta_builtin(nombre, parametros)
+
                     mensajes.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,

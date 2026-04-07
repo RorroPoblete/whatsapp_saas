@@ -64,6 +64,7 @@ export function getMe(token: string) {
 // ── Config ────────────────────────────────────────────────
 
 export type AgentConfig = {
+  niche: string
   business_name: string
   business_description: string
   business_address: string
@@ -77,6 +78,7 @@ export type AgentConfig = {
   fallback_message: string
   error_message: string
   knowledge_base: string
+  onboarding_questions: string[]
   whatsapp_provider: string
   ai_provider: string
   ai_model: string
@@ -109,6 +111,27 @@ export function completeSetup(token: string, system_prompt: string) {
 
 export function getWebhookUrl(token: string) {
   return apiFetch<{ webhook_url: string; instructions: string }>("/config/webhook-url", { token })
+}
+
+export type AutoSetupResult = {
+  agent_name: string
+  agent_tone: string
+  business_name: string
+  business_description: string
+  business_phone: string
+  business_website: string
+  business_address: string
+  business_hours: Record<string, string>
+  system_prompt: string
+  services: { name: string; niche: string; resources: { name: string; type: string; capacity: number; duration_minutes: number; description: string }[] }[]
+}
+
+export function autoSetup(token: string, data: { description: string; url?: string }) {
+  return apiFetch<AutoSetupResult>("/config/auto-setup", { method: "POST", body: data, token })
+}
+
+export function applySetup(token: string, data: AutoSetupResult) {
+  return apiFetch<{ status: string }>("/config/apply-setup", { method: "POST", body: data, token })
 }
 
 // ── Conversations ─────────────────────────────────────────
@@ -167,4 +190,91 @@ export type AnalyticsSummary = {
 
 export function getAnalytics(token: string, days = 30) {
   return apiFetch<AnalyticsSummary>(`/analytics/summary?days=${days}`, { token })
+}
+
+// ── Bookings / Resources ─────────────────────────────────
+
+export type ServiceData = {
+  id: string
+  name: string
+  niche: string
+  description: string
+  is_active: boolean
+  resource_count: number
+}
+
+export type ResourceData = {
+  id: string
+  service_id: string
+  service_name: string
+  name: string
+  resource_type: string
+  capacity: number
+  duration_minutes: number
+  description: string
+  is_active: boolean
+}
+
+export type BookingData = {
+  id: string
+  resource_name: string
+  resource_type: string
+  service_name: string
+  contact_phone: string
+  contact_name: string
+  date: string
+  time_start: string
+  time_end: string
+  guests: number
+  status: string
+  notes: string
+  created_at: string
+}
+
+export function getServices(token: string) {
+  return apiFetch<ServiceData[]>("/bookings/services", { token })
+}
+
+export function createService(token: string, data: { name: string; niche: string; description?: string }) {
+  return apiFetch<ServiceData>("/bookings/services", { method: "POST", body: data, token })
+}
+
+export function deleteService(token: string, id: string) {
+  return apiFetch(`/bookings/services/${id}`, { method: "DELETE", token })
+}
+
+export function getResources(token: string, serviceId?: string) {
+  const q = serviceId ? `?service_id=${serviceId}` : ""
+  return apiFetch<ResourceData[]>(`/bookings/resources${q}`, { token })
+}
+
+export function createResource(token: string, data: { service_id: string; name: string; resource_type: string; capacity: number; duration_minutes: number; description?: string }) {
+  return apiFetch<ResourceData>("/bookings/resources", { method: "POST", body: data, token })
+}
+
+export function deleteResource(token: string, id: string) {
+  return apiFetch(`/bookings/resources/${id}`, { method: "DELETE", token })
+}
+
+export function getBookings(token: string, params?: { date_from?: string; date_to?: string; status?: string }) {
+  const query = params ? new URLSearchParams(params as Record<string, string>).toString() : ""
+  return apiFetch<BookingData[]>(`/bookings${query ? `?${query}` : ""}`, { token })
+}
+
+export function cancelBooking(token: string, id: string) {
+  return apiFetch(`/bookings/${id}/cancel`, { method: "PATCH", token })
+}
+
+export type DetectedService = {
+  niche: string
+  label: string
+  resources: { name: string; type: string; capacity: number; duration_minutes: number; description: string }[]
+}
+
+export function detectServices(token: string) {
+  return apiFetch<{ services: DetectedService[] }>("/bookings/detect-services", { method: "POST", token })
+}
+
+export function applyServices(token: string, services: DetectedService[]) {
+  return apiFetch<{ created: string[]; count: number }>("/bookings/apply-services", { method: "POST", body: { services }, token })
 }

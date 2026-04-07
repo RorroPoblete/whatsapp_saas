@@ -11,12 +11,17 @@ import {
   Settings,
   BarChart3,
   LogOut,
-  Wand2,
+  CalendarDays,
+  Layers,
+  GitBranch,
 } from "lucide-react"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/flow", label: "Flujo", icon: GitBranch },
   { href: "/conversations", label: "Conversaciones", icon: MessageSquare },
+  { href: "/resources", label: "Recursos", icon: Layers },
+  { href: "/bookings-view", label: "Reservas", icon: CalendarDays },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Configuracion", icon: Settings },
 ]

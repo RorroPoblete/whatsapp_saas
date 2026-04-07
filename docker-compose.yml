@@ -5,6 +5,8 @@ services:
     build: ./backend
     ports:
       - "${PORT:-8000}:8000"
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://agentkit:agentkit@postgres:5432/agentkit
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}

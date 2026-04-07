@@ -6,6 +6,14 @@ import { getToken } from "@/lib/auth"
 import { getConversation, toggleAI, type ConversationDetail } from "@/lib/api"
 import { ArrowLeft, Bot, BotOff, User } from "lucide-react"
 
+function formatPhone(phone: string): string {
+  const clean = phone.replace(/[^0-9+]/g, "")
+  if (clean.startsWith("+56") && clean.length === 12) {
+    return `+56 ${clean[3]} ${clean.slice(4, 8)} ${clean.slice(8)}`
+  }
+  return clean || phone
+}
+
 export default function ConversationDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -41,8 +49,8 @@ export default function ConversationDetailPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
-          <h2 className="font-semibold">{conv.contact_name || conv.phone_number}</h2>
-          <p className="text-xs text-gray-500">{conv.phone_number}</p>
+          <h2 className="font-semibold">{conv.contact_name || formatPhone(conv.phone_number)}</h2>
+          <p className="text-xs text-gray-500">{formatPhone(conv.phone_number)}</p>
         </div>
         <button
           onClick={handleToggleAI}

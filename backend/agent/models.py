@@ -46,6 +46,27 @@ class ConversationStatus(str, enum.Enum):
     blocked = "blocked"
 
 
+class NicheType(str, enum.Enum):
+    restaurant = "restaurant"
+    hotel = "hotel"
+    agenda = "agenda"
+    custom = "custom"
+
+
+class ResourceType(str, enum.Enum):
+    table = "table"
+    room = "room"
+    slot = "slot"
+    custom = "custom"
+
+
+class BookingStatus(str, enum.Enum):
+    pending = "pending"
+    confirmed = "confirmed"
+    cancelled = "cancelled"
+    completed = "completed"
+
+
 # ════════════════════════════════════════════════════════════
 # Tenant — Cada negocio registrado
 # ════════════════════════════════════════════════════════════
@@ -97,6 +118,9 @@ class TenantConfig(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), unique=True, index=True)
 
+    # Nicho del negocio
+    niche: Mapped[str] = mapped_column(String(20), default="custom")
+
     # Datos del negocio
     business_name: Mapped[str] = mapped_column(String(200), default="")
     business_description: Mapped[str] = mapped_column(Text, default="")
@@ -124,6 +148,9 @@ class TenantConfig(Base):
     ai_api_key_encrypted: Mapped[str] = mapped_column(Text, default="")
     ai_model: Mapped[str] = mapped_column(String(50), default="gpt-4o-mini")
 
+    # Onboarding — preguntas que el bot hace a contactos nuevos
+    onboarding_questions: Mapped[list] = mapped_column(JSON, default=list)
+
     # Integraciones externas
     external_api_config: Mapped[dict] = mapped_column(JSON, default=dict)
     custom_tools: Mapped[list] = mapped_column(JSON, default=list)
@@ -149,6 +176,9 @@ class Conversation(Base):
     contact_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     status: Mapped[ConversationStatus] = mapped_column(SAEnum(ConversationStatus), default=ConversationStatus.active)
     is_ai_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    onboarding_step: Mapped[int] = mapped_column(Integer, default=0)
+    onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    contact_context: Mapped[dict] = mapped_column(JSON, default=dict)
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -203,6 +233,96 @@ class UsageTracking(Base):
     __table_args__ = (
         Index("ix_usage_tenant_date", "tenant_id", "date", unique=True),
     )
+
+
+# ════════════════════════════════════════════════════════════
+# Service — Servicios del negocio (Restaurant, Hotel, Agenda...)
+# ════════════════════════════════════════════════════════════
+
+class Service(Base):
+    __tablename__ = "services"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    niche: Mapped[str] = mapped_column(String(20), default="custom")  # restaurant, hotel, agenda, custom
+    description: Mapped[str] = mapped_column(Text, default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    tenant: Mapped["Tenant"] = relationship()
+    resources: Mapped[list["Resource"]] = relationship(back_populates="service", cascade="all, delete-orphan")
+
+
+# ════════════════════════════════════════════════════════════
+# Resource — Mesas, habitaciones, slots (por servicio)
+# ════════════════════════════════════════════════════════════
+
+class Resource(Base):
+    __tablename__ = "resources"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), index=True)
+    service_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("services.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    resource_type: Mapped[ResourceType] = mapped_column(SAEnum(ResourceType), default=ResourceType.custom)
+    capacity: Mapped[int] = mapped_column(Integer, default=1)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    description: Mapped[str] = mapped_column(Text, default="")
+    metadata_: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    tenant: Mapped["Tenant"] = relationship()
+    service: Mapped["Service"] = relationship(back_populates="resources")
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="resource", cascade="all, delete-orphan")
+
+
+# ════════════════════════════════════════════════════════════
+# Booking — Reservas (mesas, habitaciones, citas)
+# ════════════════════════════════════════════════════════════
+
+class Booking(Base):
+    __tablename__ = "bookings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), index=True)
+    resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("resources.id"), index=True)
+    conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=True)
+    contact_phone: Mapped[str] = mapped_column(String(50))
+    contact_name: Mapped[str] = mapped_column(String(200), default="")
+    date: Mapped[datetime] = mapped_column(Date, index=True)
+    time_start: Mapped[str] = mapped_column(String(5))  # "20:00"
+    time_end: Mapped[str] = mapped_column(String(5))     # "21:00"
+    guests: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[BookingStatus] = mapped_column(SAEnum(BookingStatus), default=BookingStatus.confirmed)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    tenant: Mapped["Tenant"] = relationship()
+    resource: Mapped["Resource"] = relationship(back_populates="bookings")
+
+    __table_args__ = (
+        Index("ix_bookings_tenant_date", "tenant_id", "date"),
+    )
+
+
+# ════════════════════════════════════════════════════════════
+# WhatsAppNumber — Pool de numeros disponibles (gestionado por admin)
+# ════════════════════════════════════════════════════════════
+
+class WhatsAppNumber(Base):
+    __tablename__ = "whatsapp_numbers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    phone_number: Mapped[str] = mapped_column(String(50))
+    label: Mapped[str] = mapped_column(String(100), default="")
+    provider: Mapped[str] = mapped_column(String(20), default="whapi")
+    credentials: Mapped[dict] = mapped_column(JSON, default=dict)
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
+    assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 # ════════════════════════════════════════════════════════════

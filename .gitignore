@@ -1,5 +1,6 @@
 # Secretos
 .env
+.env.local
 backend/.env
 
 # Bases de datos

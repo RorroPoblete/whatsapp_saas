@@ -28,24 +28,59 @@ const features = [
 
 const plans = [
   {
-    name: "Free",
-    price: "Gratis",
-    features: ["500 mensajes/mes", "1 agente", "Historial 7 dias", "Soporte email"],
-    cta: "Comenzar gratis",
+    name: "Pyme",
+    price: "$99.990",
+    period: "/mes + IVA",
+    description: "Para negocios que quieren empezar con IA en WhatsApp",
+    features: [
+      "1,000 mensajes IA/mes",
+      "1 numero WhatsApp conectado",
+      "Conversaciones ilimitadas",
+      "Dashboard con metricas",
+      "Setup en 5 minutos",
+      "Google My Business basico",
+      "Soporte por email y WhatsApp",
+    ],
+    cta: "Comenzar 7 dias gratis",
     highlighted: false,
   },
   {
-    name: "Pro",
-    price: "$29/mes",
-    features: ["5,000 mensajes/mes", "1 agente", "Historial 90 dias", "Analytics completo", "Soporte prioritario"],
-    cta: "Comenzar prueba",
+    name: "Profesional",
+    price: "$199.990",
+    period: "/mes + IVA",
+    badge: "Recomendado",
+    description: "Para restaurantes, hoteles, clinicas y e-commerce",
+    features: [
+      "5,000 mensajes IA/mes",
+      "1 numero WhatsApp conectado",
+      "3 usuarios en dashboard",
+      "Analytics avanzado",
+      "Knowledge base editable",
+      "Onboarding asistido",
+      "Google Workspace (1 email)",
+      "Google My Business + Analytics",
+      "Soporte WhatsApp prioritario",
+    ],
+    cta: "Comenzar 7 dias gratis",
     highlighted: true,
   },
   {
-    name: "Enterprise",
-    price: "$99/mes",
-    features: ["50,000 mensajes/mes", "Agentes ilimitados", "Historial ilimitado", "Integraciones API", "Soporte dedicado"],
-    cta: "Contactar ventas",
+    name: "Business",
+    price: "$349.990",
+    period: "/mes + IVA",
+    description: "Para empresas con alto volumen y multiples sucursales",
+    features: [
+      "15,000 mensajes IA/mes",
+      "Hasta 3 numeros WhatsApp",
+      "10 usuarios en dashboard",
+      "API + Webhooks + CRM",
+      "Google Workspace (3 emails)",
+      "Google Ads setup inicial",
+      "Historial ilimitado",
+      "Reportes automaticos",
+      "Soporte prioritario + reuniones",
+    ],
+    cta: "Comenzar 7 dias gratis",
     highlighted: false,
   },
 ]
@@ -82,8 +117,8 @@ export default function LandingPage() {
           <span className="text-brand-600">con inteligencia artificial</span>
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-10">
-          Crea un agente de WhatsApp personalizado para tu negocio que responde
-          preguntas, agenda citas y atiende clientes. Sin programar, listo en minutos.
+          Crea un agente de WhatsApp con IA para tu negocio. Responde preguntas,
+          agenda citas y atiende clientes 24/7. Listo en 5 minutos, desde $99.990/mes.
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link
@@ -110,25 +145,35 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section className="max-w-6xl mx-auto px-6 py-20">
-        <h2 className="text-3xl font-bold text-center mb-4">Planes</h2>
-        <p className="text-gray-600 text-center mb-12">Empieza gratis, escala cuando crezcas</p>
+      <section className="max-w-6xl mx-auto px-6 py-20" id="pricing">
+        <h2 className="text-3xl font-bold text-center mb-4">Planes transparentes, sin costos ocultos</h2>
+        <p className="text-gray-600 text-center mb-4">IA incluida en todos los planes. Sin contratos, cancela cuando quieras.</p>
+        <p className="text-brand-600 text-center text-sm font-medium mb-12">7 dias de prueba gratis en cualquier plan</p>
         <div className="grid md:grid-cols-3 gap-8">
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`p-8 rounded-xl border-2 ${
+              className={`p-8 rounded-xl border-2 relative ${
                 plan.highlighted
                   ? "border-brand-600 shadow-lg shadow-brand-100"
                   : "border-gray-100"
               }`}
             >
-              <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-              <p className="text-3xl font-bold mb-6">{plan.price}</p>
+              {"badge" in plan && plan.badge && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  {plan.badge}
+                </span>
+              )}
+              <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
+              <p className="text-sm text-gray-500 mb-4">{plan.description}</p>
+              <div className="mb-6">
+                <span className="text-4xl font-bold">{plan.price}</span>
+                <span className="text-sm text-gray-500">{plan.period}</span>
+              </div>
               <ul className="space-y-3 mb-8">
                 {plan.features.map((f) => (
-                  <li key={f} className="text-sm text-gray-600 flex items-center gap-2">
-                    <span className="text-brand-600">&#10003;</span> {f}
+                  <li key={f} className="text-sm text-gray-600 flex items-start gap-2">
+                    <span className="text-brand-600 mt-0.5">&#10003;</span> {f}
                   </li>
                 ))}
               </ul>
@@ -144,6 +189,12 @@ export default function LandingPage() {
               </Link>
             </div>
           ))}
+        </div>
+        <div className="mt-12 text-center">
+          <p className="text-gray-500 text-sm mb-2">Necesitas mas? Tenemos plan Enterprise desde $599.990/mes</p>
+          <Link href="/register" className="text-brand-600 text-sm font-medium hover:text-brand-700">
+            Contactar ventas &rarr;
+          </Link>
         </div>
       </section>
 
